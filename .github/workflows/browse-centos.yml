@@ -61,6 +61,7 @@ jobs:
             du -sh gstack/node_modules/* gstack/node_modules/@*/* 2>/dev/null | sort -rh | head -25
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p stage
           rsync -a --exclude .git \
             --exclude 'node_modules/@huggingface' --exclude 'node_modules/onnxruntime-*' \
             --exclude 'node_modules/sharp' --exclude 'node_modules/@img' --exclude 'node_modules/@ngrok' \
