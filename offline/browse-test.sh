@@ -27,8 +27,10 @@ note "- $(google-chrome --version 2>&1), node $(node --version), npm $(npm --ver
 note ""
 note "## Install"
 step "network is unreachable" sh -c '! curl -sS --max-time 5 https://registry.npmjs.org/ > /dev/null 2>&1'
+# npm writes to its cache even when offline, and /stage is read-only.
+cp -a "$STAGE/npm-cache" "$T/npm-cache"
 step "npm install -g bun@1.4.2 from the cache, --offline" \
-  npm install -g --prefix "$T/npm" bun@1.4.2 --offline --cache "$STAGE/npm-cache" --no-audit --no-fund
+  npm install -g --prefix "$T/npm" bun@1.4.2 --offline --cache "$T/npm-cache" --no-audit --no-fund
 export PATH=$T/npm/bin:$PATH
 note "- bun: $(bun --version 2>&1 | head -1)"
 cp -a "$STAGE/runtime" "$T/gstack"
@@ -70,3 +72,5 @@ grep -rhoiE 'no-sandbox|sandbox[^"]{0,80}' "$T" --include='*.log' 2>/dev/null | 
 # Daemon logs and state, for anything that failed above.
 find "$W" "$HOME" "$GSTACK_HOME" -name '*.log' -o -name '*.json' 2>/dev/null | head -40 \
   | while read -r f; do mkdir -p "$OUT/state$(dirname "$f")" && cp "$f" "$OUT/state$f"; done
+
+! grep -q '^- FAIL' "$R"
