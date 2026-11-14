@@ -44,7 +44,8 @@ cat > "$T/site/index.html" <<'EOF'
 <script>console.log("horo console hello")</script>
 EOF
 echo '<!doctype html><title>next</title><p>second page</p>' > "$T/site/next.html"
-python3 -m http.server 8765 --bind 127.0.0.1 --directory "$T/site" > /dev/null 2>&1 &
+# EL8's python 3.6 has no --directory.
+(cd "$T/site" && exec python3 -m http.server 8765 --bind 127.0.0.1 > /dev/null 2>&1) &
 sleep 1
 
 export GSTACK_CHROMIUM_PATH=/opt/google/chrome/chrome

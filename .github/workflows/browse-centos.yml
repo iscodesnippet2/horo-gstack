@@ -52,8 +52,9 @@ jobs:
           chmod +x browse/dist/browse-wrapper
           file browse/dist/browse
 
-      # The server imports @ngrok/ngrok, @huggingface/transformers and sharp
-      # only on demand; leaving them out shows whether browse needs them.
+      # The server imports @ngrok/ngrok and @huggingface/transformers only on
+      # demand; leaving them out shows whether browse needs them. sharp (and
+      # its @img/*-linux-x64 native parts) is needed for screenshots.
       - name: Stage the runtime and the npm cache
         run: |
           {
@@ -64,7 +65,7 @@ jobs:
           mkdir -p stage
           rsync -a --exclude .git \
             --exclude 'node_modules/@huggingface' --exclude 'node_modules/onnxruntime-*' \
-            --exclude 'node_modules/sharp' --exclude 'node_modules/@img' --exclude 'node_modules/@ngrok' \
+            --exclude 'node_modules/@ngrok' \
             --exclude 'node_modules/@anthropic-ai' --exclude 'node_modules/html-to-docx' \
             --exclude 'node_modules/typescript' --exclude 'node_modules/@types' \
             gstack/ stage/runtime/
