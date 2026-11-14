@@ -1,3 +1,11 @@
 __pycache__/
 inventory/
 render/
+src/horo_gstack/_vendor/
+src/horo_gstack/_version.py
+build/
+build-dist/
+dist/
+*.egg-info/
+*.cdx.json
+uv.lock

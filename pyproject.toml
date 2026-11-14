@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "horo-gstack"
+dynamic = ["version"]
+description = "gstack skills and runtime (Garry Tan, MIT) for Hermes, installable from a pip mirror"
+readme = "README.md"
+# horo-gstack and gstack are MIT; the rest covers the npm packages browse needs,
+# which vendor.py checks against its LICENSES list (sharp's libvips is LGPL).
+license = "MIT AND Apache-2.0 AND BSD-3-Clause AND ISC AND LGPL-3.0-or-later AND BlueOak-1.0.0"
+license-files = [
+    "LICENSE",
+    "src/horo_gstack/_vendor/runtime/LICENSE",
+    "src/horo_gstack/_vendor/runtime/NOTICE.md",
+    "src/horo_gstack/_vendor/runtime/licenses/*",
+    "src/horo_gstack/_vendor/runtime/node_modules/**/LICENSE*",
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.urls]
+Upstream = "https://github.com/garrytan/gstack"
+
+[project.scripts]
+horo-gstack = "horo_gstack.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "horo_gstack._version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+horo_gstack = ["_vendor/**/*", "_vendor/**/.*"]
