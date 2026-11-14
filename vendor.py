@@ -19,7 +19,7 @@ Two compiled binaries upstream builds at setup become bun wrappers, so nothing
 here is built for a platform except sharp's prebuilt native parts.
 
 Every check fails closed: an excluded skill that no longer exists, a license
-that changed, or an npm license outside LICENSES stops the build.
+that changed, or npm licenses that differ from pyproject.toml's stop the build.
 """
 
 import json
@@ -64,9 +64,9 @@ RUNTIME_SKIP = {".git", ".github", "node_modules", "test", "docs", "changelog.d"
 # depend on comes with them.
 NPM_ROOTS = ["playwright", "diff", "socks", "sharp"]
 
-# Licenses of the npm packages shipped. A new one stops the build until
-# pyproject.toml's license expression covers it.
-LICENSES = {"MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "LGPL-3.0-or-later", "BlueOak-1.0.0"}
+# pyproject.toml's license expression must name exactly MIT plus the npm
+# packages' licenses: a new or dropped one stops the build until it is updated.
+LICENSE_RE = re.compile(r'^license = "([^"]+)"', re.M)
 
 BROWSE_WRAPPER = """#!/usr/bin/env bash
 # horo-gstack: browse run from source with bun instead of upstream's compiled
@@ -150,9 +150,11 @@ def main(checkout: Path, render: Path, post=None):
         write_exec(runtime / "bin" / "gstack-global-discover", DISCOVER_WRAPPER)
 
     packages = npm_closure(checkout / "node_modules")
-    if bad := sorted({p["license"] for p in packages} - LICENSES):
-        fail(f"npm licenses not reviewed: {bad} in "
-             f"{[p['name'] for p in packages if p['license'] in bad]}")
+    declared = set(LICENSE_RE.search((HERE / "pyproject.toml").read_text()).group(1).split(" AND "))
+    shipped_licenses = {"MIT"} | {p["license"] for p in packages}
+    if declared != shipped_licenses:
+        fail(f"pyproject.toml license {sorted(declared)} != shipped {sorted(shipped_licenses)}; "
+             f"review {[p['name'] for p in packages if p['license'] not in declared]}")
     for p in packages:
         shutil.copytree(checkout / "node_modules" / p["name"], runtime / "node_modules" / p["name"],
                         symlinks=False, ignore=shutil.ignore_patterns(".bin"))
