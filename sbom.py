@@ -4,8 +4,9 @@
     python sbom.py embed <wheel> <sbom.cdx.json> <release-copy.cdx.json>
 
 Components: the gstack skills and runtime, named by the commit they came from,
-and each npm package vendor.py copied into the runtime for browse, with its
-license, so a review system can trace every file to its source.
+each npm package vendor.py copied into the runtime for browse, and each npm
+package inside gstack's prebuilt diagram-render bundle, with its license, so a
+review system can trace every file to its source.
 """
 
 import base64
@@ -35,6 +36,12 @@ def generate(out: Path) -> None:
         "version": p["version"], "purl": f"pkg:npm/{p['name']}@{p['version']}", "scope": "required",
         "licenses": [{"expression": p["license"]}],
     } for p in up["npm"]]
+    diagram = [{
+        "type": "library", "bom-ref": f"pkg:npm/{p['name']}@{p['version']}#diagram-render", "name": p["name"],
+        "version": p["version"], "purl": f"pkg:npm/{p['name']}@{p['version']}", "scope": "required",
+        "licenses": [{"expression": p["license"]}],
+        "properties": [{"name": "horo:bundled-in", "value": "lib/diagram-render/dist/diagram-render.html"}],
+    } for p in up["diagram_render"]]
     bom = {
         "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
         "serialNumber": f"urn:uuid:{uuid.uuid4()}",
@@ -59,11 +66,13 @@ def generate(out: Path) -> None:
             "copyright": "Copyright (c) 2026 Garry Tan",
             "externalReferences": [{"type": "vcs", "url": f"{up['repository']}/tree/{up['commit']}"}],
             "properties": [{"name": "horo:skills", "value": ",".join(up["skills"])}],
-        }, *npm],
-        "dependencies": [{"ref": this, "dependsOn": [gstack, *(c["bom-ref"] for c in npm)]}],
+        }, *npm, *diagram],
+        "dependencies": [{"ref": this, "dependsOn": [gstack, *(c["bom-ref"] for c in npm)]},
+                         {"ref": gstack, "dependsOn": [c["bom-ref"] for c in diagram]}],
     }
     out.write_text(json.dumps(bom, indent=1) + "\n")
-    print(f"[sbom] wrote {out}: gstack {up['version']} @ {up['commit'][:12]}, {len(npm)} npm packages")
+    print(f"[sbom] wrote {out}: gstack {up['version']} @ {up['commit'][:12]}, {len(npm)} npm packages, "
+          f"{len(diagram)} in the diagram bundle")
 
 
 def embed(wheel: Path, sbom: Path, release_copy: Path) -> None:

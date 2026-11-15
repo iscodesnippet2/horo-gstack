@@ -4,7 +4,9 @@
 packaged so they install on an offline Hermes machine from a pip mirror and an
 npm mirror. Unofficial; not affiliated with gstack or its author. gstack is
 MIT-licensed by Garry Tan; its license, NOTICE.md and third-party licenses ship
-in the wheel.
+in the wheel, with the license of every npm package browse needs and of every
+package inside gstack's prebuilt diagram bundle
+(`lib/diagram-render/THIRD-PARTY-NOTICES.md`).
 
 Tested on CentOS / RHEL 8 and 9 (x86-64). The wheel has no native code; bun
 and Google Chrome come from the machine.

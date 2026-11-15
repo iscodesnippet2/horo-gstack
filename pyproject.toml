@@ -7,15 +7,19 @@ name = "horo-gstack"
 dynamic = ["version"]
 description = "gstack skills and runtime (Garry Tan, MIT) for Hermes, installable from a pip mirror"
 readme = "README.md"
-# horo-gstack and gstack are MIT; the rest covers the npm packages browse needs,
-# which vendor.py checks match this expression exactly.
-license = "MIT AND Apache-2.0 AND BSD-3-Clause"
+# horo-gstack and gstack are MIT; the rest covers the npm packages browse needs
+# and those inside gstack's diagram-render bundle, which vendor.py checks match
+# this expression exactly.
+license = "MIT AND Apache-2.0 AND BSD-3-Clause AND ISC AND 0BSD AND CC0-1.0 AND Zlib AND (MPL-2.0 OR Apache-2.0)"
 license-files = [
     "LICENSE",
     "src/horo_gstack/_vendor/runtime/LICENSE",
     "src/horo_gstack/_vendor/runtime/NOTICE.md",
     "src/horo_gstack/_vendor/runtime/licenses/*",
     "src/horo_gstack/_vendor/runtime/node_modules/**/LICENSE*",
+    "src/horo_gstack/_vendor/runtime/node_modules/**/NOTICE*",
+    "src/horo_gstack/_vendor/runtime/node_modules/**/ThirdPartyNotices.txt",
+    "src/horo_gstack/_vendor/runtime/lib/diagram-render/THIRD-PARTY-NOTICES.md",
 ]
 requires-python = ">=3.11"
 dependencies = []

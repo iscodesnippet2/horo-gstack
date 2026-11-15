@@ -90,6 +90,7 @@ step "text" sh -c "'$B' text | grep -q HORO-MARKER-42"
 step "screenshot" "$B" screenshot "$W/shot.png"
 cp "$W/shot.png" "$OUT/" 2>/dev/null
 step "a long page's screenshot goes out as taken (no sharp)" sh -c "'$B' goto http://127.0.0.1:8765/long.html && '$B' screenshot '$W/long.png' && python3.12 -c 'import struct,sys; h=struct.unpack(\">I\", open(sys.argv[1],\"rb\").read()[20:24])[0]; print(h); sys.exit(h <= 2000)' '$W/long.png'"
+step "the diagram bundle's third-party notices are shipped" sh -c "grep -q '^| mermaid | ' '$RUNTIME/lib/diagram-render/THIRD-PARTY-NOTICES.md' && [ ! -e '$RUNTIME/lib/diagram-render/node_modules' ]"
 step "sharp is not shipped" sh -c "! ls '$RUNTIME/node_modules' | grep -qx -e sharp -e @img"
 step "the browser is Google Chrome" sh -c "ps -eo args | grep -v grep | grep -q '^/opt/google/chrome/chrome'"
 step "stop" "$B" stop

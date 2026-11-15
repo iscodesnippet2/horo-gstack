@@ -61,6 +61,9 @@ jobs:
         working-directory: gstack
         run: |
           bun install --frozen-lockfile --ignore-scripts
+          # Not shipped: lets vendor.py list the packages inside the prebuilt
+          # diagram-render bundle and copy their licenses.
+          (cd lib/diagram-render && bun install --frozen-lockfile --ignore-scripts)
           bun --no-env-file scripts/gen-skill-docs.ts --host hermes \
             --install-root "$INSTALL_ROOT" --out-dir "$GITHUB_WORKSPACE/render"
 

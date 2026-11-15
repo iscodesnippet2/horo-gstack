@@ -15,6 +15,11 @@ The wheel carries three things:
   runtime/node_modules
                  only what browse needs (Playwright, diff, socks), resolved
                  from package.json files
+  runtime/lib/diagram-render/THIRD-PARTY-NOTICES.md
+                 the license of every npm package inside gstack's prebuilt
+                 diagram-render bundle, which upstream lists only in part; it
+                 needs `bun install --frozen-lockfile --ignore-scripts` in
+                 <gstack-checkout>/lib/diagram-render
 Two compiled binaries upstream builds at setup become bun wrappers, and browse's
 screenshot size guard no longer downscales with sharp (a native linux-x64
 libvips, LGPL), so nothing here is built for a platform.
@@ -67,6 +72,37 @@ NPM_ROOTS = ["playwright", "diff", "socks"]
 # pyproject.toml's license expression must name exactly MIT plus the npm
 # packages' licenses: a new or dropped one stops the build until it is updated.
 LICENSE_RE = re.compile(r'^license = "([^"]+)"', re.M)
+
+LICENSE_FILE_RE = re.compile(r"^(licen[cs]e|copying|notice|thirdpartynotices)", re.I)
+
+# Packages in the diagram-render bundle whose npm tarball has no license file,
+# with the copyright line from their repository's LICENSE (all MIT).
+MIT_WITHOUT_FILE = {
+    "@excalidraw/excalidraw": "Copyright (c) 2020 Excalidraw (https://github.com/excalidraw/excalidraw)",
+    "@radix-ui/": "Copyright (c) 2022 WorkOS (https://github.com/radix-ui/primitives)",
+    "react-remove-scroll-bar": "Copyright (c) Anton Korzunov (https://github.com/theKashey/react-remove-scroll-bar)",
+}
+# Packages whose package.json has no SPDX license field, read from their license file.
+LICENSE_FROM_FILE = {"khroma": "MIT", "fuzzy": "MIT"}
+
+MIT_TEXT = """Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
 
 BROWSE_WRAPPER = """#!/usr/bin/env bash
 # horo-gstack: browse run from source with bun instead of upstream's compiled
@@ -158,6 +194,82 @@ def npm_closure(modules: Path) -> list[dict]:
     return sorted(seen.values(), key=lambda p: p["name"])
 
 
+def license_terms(expr: str) -> set[str]:
+    """An SPDX expression as the AND-ed terms pyproject.toml lists: `(MIT AND
+    Zlib)` is two terms, `(MPL-2.0 OR Apache-2.0)` stays one."""
+    parts, depth, start = [], 0, 0
+    for i, c in enumerate(expr):
+        depth += {"(": 1, ")": -1}.get(c, 0)
+        if depth == 0 and expr.startswith(" AND ", i):
+            parts.append(expr[start:i])
+            start = i + 5
+    parts.append(expr[start:])
+    terms = set()
+    for t in (t.strip() for t in parts):
+        if " OR " in t:
+            terms.add(t if t.startswith("(") else f"({t})")
+        elif t.startswith("("):
+            terms |= license_terms(t[1:-1])
+        else:
+            terms.add(t)
+    return terms
+
+
+def diagram_notices(checkout: Path, runtime: Path) -> list[dict]:
+    """Write THIRD-PARTY-NOTICES.md for the packages bundled into
+    lib/diagram-render/dist/diagram-render.html and return them."""
+    root = checkout / "lib" / "diagram-render"
+    info = json.loads((root / "dist" / "BUILD_INFO.json").read_text())
+    pinned = json.loads((root / "package.json").read_text())["dependencies"]
+    if info["deps"] != pinned:
+        fail(f"diagram-render's dist was built from {info['deps']}, package.json pins {pinned}")
+    for name, version in pinned.items():
+        pj = root / "node_modules" / name / "package.json"
+        if not pj.is_file() or json.loads(pj.read_text())["version"] != version:
+            fail(f"lib/diagram-render/node_modules/{name} is not {version}; "
+                 "run bun install --frozen-lockfile --ignore-scripts there")
+    dirs = json.loads(subprocess.run(
+        ["bun", "--no-env-file", "run", str(HERE / "tools" / "bundle-sources.ts")],
+        cwd=root, capture_output=True, text=True, check=True).stdout)
+
+    packages, sections = [], []
+    for d in dirs:
+        meta = json.loads((root / d / "package.json").read_text())
+        name, version = meta["name"], meta["version"]
+        lic = meta.get("license") if isinstance(meta.get("license"), str) else LICENSE_FROM_FILE.get(name)
+        if not lic:
+            fail(f"diagram-render bundles {name}@{version} with no license field; review it")
+        texts = [(f.name, f.read_text(errors="replace").strip())
+                 for f in sorted((root / d).iterdir()) if f.is_file() and LICENSE_FILE_RE.match(f.name)]
+        if not texts:
+            holder = next((v for k, v in MIT_WITHOUT_FILE.items() if name == k or name.startswith(k)), None)
+            if lic != "MIT" or not holder:
+                fail(f"diagram-render bundles {name}@{version} ({lic}) and its package has no license file")
+            texts = [("LICENSE (from the repository; the npm package has none)", f"MIT License\n\n{holder}\n\n{MIT_TEXT}".strip())]
+        if any(p["name"] == name and p["version"] == version for p in packages):
+            continue
+        packages.append({"name": name, "version": version, "license": lic})
+        sections.append(f"## {name} {version} ({lic})\n\n" + "\n\n".join(
+            f"{fname}:\n\n```\n{text}\n```" for fname, text in texts))
+
+    rows = "\n".join(f"| {p['name']} | {p['version']} | {p['license']} |" for p in packages)
+    (runtime / "lib" / "diagram-render" / "THIRD-PARTY-NOTICES.md").write_text(f"""# Third-party notices: diagram-render bundle
+
+Written by horo-gstack's vendor.py. `dist/diagram-render.html` is gstack's
+prebuilt single-file page; rebuilding it from the same entry with a source map
+names the npm packages below as the ones whose code it contains. Each one's
+license text follows the table. The bundle refers to excalidraw's fonts by path
+but does not embed them, so no font is distributed here.
+
+| Package | Version | License |
+|---|---|---|
+{rows}
+
+{chr(10).join(sections)}
+""")
+    return packages
+
+
 def main(checkout: Path, render: Path, post=None):
     if not (checkout / "LICENSE").read_text().startswith("MIT License"):
         fail("gstack is no longer MIT-licensed; review before shipping")
@@ -183,6 +295,7 @@ def main(checkout: Path, render: Path, post=None):
     shutil.copytree(checkout, runtime, symlinks=False,
                     ignore=lambda d, names: [n for n in names
                                              if (Path(d) == checkout and n in RUNTIME_SKIP)
+                                             or n == "node_modules"
                                              or n.endswith(".bun-build")])
     write_exec(runtime / "browse" / "dist" / "browse", BROWSE_WRAPPER)
     guard = runtime / "browse" / "src" / "screenshot-size-guard.ts"
@@ -196,11 +309,12 @@ def main(checkout: Path, render: Path, post=None):
         write_exec(runtime / "bin" / "gstack-global-discover", DISCOVER_WRAPPER)
 
     packages = npm_closure(checkout / "node_modules")
-    declared = set(LICENSE_RE.search((HERE / "pyproject.toml").read_text()).group(1).split(" AND "))
-    shipped_licenses = {"MIT"} | {p["license"] for p in packages}
+    diagram = diagram_notices(checkout, runtime)
+    declared = license_terms(LICENSE_RE.search((HERE / "pyproject.toml").read_text()).group(1))
+    shipped_licenses = {"MIT"}.union(*(license_terms(p["license"]) for p in packages + diagram))
     if declared != shipped_licenses:
         fail(f"pyproject.toml license {sorted(declared)} != shipped {sorted(shipped_licenses)}; "
-             f"review {[p['name'] for p in packages if p['license'] not in declared]}")
+             f"review {[p['name'] for p in packages + diagram if not license_terms(p['license']) <= declared]}")
     for p in packages:
         shutil.copytree(checkout / "node_modules" / p["name"], runtime / "node_modules" / p["name"],
                         symlinks=False, ignore=shutil.ignore_patterns(".bin"))
@@ -215,11 +329,12 @@ def main(checkout: Path, render: Path, post=None):
         "skills": shipped,
         "excluded": EXCLUDED,
         "npm": packages,
+        "diagram_render": diagram,
     }, indent=2) + "\n")
     (HERE / "src" / "horo_gstack" / "_version.py").write_text(f'__version__ = "{version}"\n')
     print(f"[vendor] ok   horo-gstack {version} from gstack {upstream_version} @ {commit[:12]}: "
-          f"{len(shipped)} skills, {len(EXCLUDED)} excluded, {len(packages)} npm packages "
-          f"({', '.join(sorted({p['license'] for p in packages}))})")
+          f"{len(shipped)} skills, {len(EXCLUDED)} excluded, {len(packages)} npm packages for browse, "
+          f"{len(diagram)} in the diagram bundle ({', '.join(sorted(shipped_licenses))})")
 
 
 if __name__ == "__main__":
