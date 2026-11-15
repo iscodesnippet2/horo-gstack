@@ -81,6 +81,7 @@ note ""
 note "## browse, with the browser install found"
 mkdir -p "$T/site"
 echo '<!doctype html><title>t</title><h1>HORO-MARKER-42</h1><a href="/n.html">n</a>' > "$T/site/index.html"
+echo '<!doctype html><title>long</title><div style="height:5000px">long</div>' > "$T/site/long.html"
 (cd "$T/site" && exec python3.12 -m http.server 8765 --bind 127.0.0.1 > /dev/null 2>&1) &
 sleep 1
 B=$RUNTIME/browse/dist/browse
@@ -88,6 +89,8 @@ step "goto" "$B" goto http://127.0.0.1:8765/
 step "text" sh -c "'$B' text | grep -q HORO-MARKER-42"
 step "screenshot" "$B" screenshot "$W/shot.png"
 cp "$W/shot.png" "$OUT/" 2>/dev/null
+step "a long page's screenshot goes out as taken (no sharp)" sh -c "'$B' goto http://127.0.0.1:8765/long.html && '$B' screenshot '$W/long.png' && python3.12 -c 'import struct,sys; h=struct.unpack(\">I\", open(sys.argv[1],\"rb\").read()[20:24])[0]; print(h); sys.exit(h <= 2000)' '$W/long.png'"
+step "sharp is not shipped" sh -c "! ls '$RUNTIME/node_modules' | grep -qx -e sharp -e @img"
 step "the browser is Google Chrome" sh -c "ps -eo args | grep -v grep | grep -q '^/opt/google/chrome/chrome'"
 step "stop" "$B" stop
 step "gstack-global-discover runs (retro)" "$RUNTIME/bin/gstack-global-discover" --help

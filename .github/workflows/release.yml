@@ -33,8 +33,6 @@ concurrency:
 
 env:
   INSTALL_ROOT: /opt/horo-gstack
-  # sharp's prebuilt libvips for linux-x64 needs glibc 2.26; CentOS 8 has 2.28.
-  PLATFORM_TAG: manylinux_2_28_x86_64
 
 jobs:
   build:
@@ -75,7 +73,6 @@ jobs:
       - name: Build the wheel
         run: |
           uv build --wheel --out-dir build-dist
-          uvx --from wheel==0.45.1 wheel tags --platform-tag "$PLATFORM_TAG" --remove build-dist/*.whl
           mkdir dist && mv build-dist/*.whl dist/
           ls -l dist
 
@@ -83,7 +80,7 @@ jobs:
         run: |
           v="${{ steps.meta.outputs.version }}"
           python3 sbom.py generate horo-gstack.cdx.json
-          python3 sbom.py embed "dist/horo_gstack-$v-py3-none-$PLATFORM_TAG.whl" horo-gstack.cdx.json "horo-gstack-$v.cdx.json"
+          python3 sbom.py embed "dist/horo_gstack-$v-py3-none-any.whl" horo-gstack.cdx.json "horo-gstack-$v.cdx.json"
           uv run --with 'cyclonedx-python-lib[json-validation]==11.12.0' python -c "
           import sys
           from cyclonedx.schema import SchemaVersion

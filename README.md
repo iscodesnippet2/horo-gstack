@@ -6,8 +6,8 @@ npm mirror. Unofficial; not affiliated with gstack or its author. gstack is
 MIT-licensed by Garry Tan; its license, NOTICE.md and third-party licenses ship
 in the wheel.
 
-Linux x86-64 only (CentOS / RHEL 8 and later): the wheel carries sharp's
-prebuilt linux-x64 libvips for browse screenshots.
+Tested on CentOS / RHEL 8 and 9 (x86-64). The wheel has no native code; bun
+and Google Chrome come from the machine.
 
 ## Install
 
@@ -38,6 +38,10 @@ what install wrote (gstack's own state in `~/.gstack` stays).
   minutes and 125 tool calls on MiniMax-M3.1-Flash.
 - `gstack-review` and `gstack-qa` fix what they find in your working tree.
   `gstack-office-hours` searches the web when Hermes has web tools.
+- browse screenshots go to the model as taken. Upstream shrinks full-page
+  screenshots longer than 2000px with sharp, which horo-gstack leaves out (its
+  libvips is native and LGPL); a model with a smaller image limit may reject a
+  long page's full screenshot, so use `screenshot --viewport` for those.
 - browse drives the installed Google Chrome headless. It needs Chrome's
   sandbox (unprivileged user namespaces), or `GSTACK_CHROMIUM_NO_SANDBOX=1`
   for trusted pages only.

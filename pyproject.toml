@@ -8,8 +8,8 @@ dynamic = ["version"]
 description = "gstack skills and runtime (Garry Tan, MIT) for Hermes, installable from a pip mirror"
 readme = "README.md"
 # horo-gstack and gstack are MIT; the rest covers the npm packages browse needs,
-# which vendor.py checks match this expression exactly (sharp's libvips is LGPL).
-license = "MIT AND Apache-2.0 AND BSD-3-Clause AND ISC AND LGPL-3.0-or-later"
+# which vendor.py checks match this expression exactly.
+license = "MIT AND Apache-2.0 AND BSD-3-Clause"
 license-files = [
     "LICENSE",
     "src/horo_gstack/_vendor/runtime/LICENSE",

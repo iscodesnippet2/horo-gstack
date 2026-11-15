@@ -13,10 +13,11 @@ The wheel carries three things:
   runtime/       the checkout gstack's scripts run from, without tests, docs or
                  build-only material
   runtime/node_modules
-                 only what browse needs (Playwright, sharp and its linux-x64
-                 libvips, diff, socks), resolved from package.json files
-Two compiled binaries upstream builds at setup become bun wrappers, so nothing
-here is built for a platform except sharp's prebuilt native parts.
+                 only what browse needs (Playwright, diff, socks), resolved
+                 from package.json files
+Two compiled binaries upstream builds at setup become bun wrappers, and browse's
+screenshot size guard no longer downscales with sharp (a native linux-x64
+libvips, LGPL), so nothing here is built for a platform.
 
 Every check fails closed: an excluded skill that no longer exists, a license
 that changed, or npm licenses that differ from pyproject.toml's stop the build.
@@ -60,9 +61,8 @@ EXCLUDED = {
 RUNTIME_SKIP = {".git", ".github", "node_modules", "test", "docs", "changelog.d", "contrib",
                 "CHANGELOG.md", "TODOS.md", ".hermes", ".claude", ".agents"}
 
-# browse's server and its screenshot guard import these; everything they
-# depend on comes with them.
-NPM_ROOTS = ["playwright", "diff", "socks", "sharp"]
+# browse's server imports these; everything they depend on comes with them.
+NPM_ROOTS = ["playwright", "diff", "socks"]
 
 # pyproject.toml's license expression must name exactly MIT plus the npm
 # packages' licenses: a new or dropped one stops the build until it is updated.
@@ -77,6 +77,45 @@ if [ -z "${GSTACK_CHROMIUM_PATH:-}" ] && [ -s "$here/../.chrome-path" ]; then
   GSTACK_CHROMIUM_PATH=$(cat "$here/../.chrome-path"); export GSTACK_CHROMIUM_PATH
 fi
 exec bun --no-env-file --config=/dev/null "$here/../src/cli.ts" "$@"
+"""
+
+# browse/src/screenshot-size-guard.ts downscales full-page screenshots longer
+# than 2000px with sharp. This keeps its exports but returns the screenshot as
+# taken, reading the size from the PNG header only to report it.
+GUARD_EXPORTS = ["guardScreenshotBuffer", "guardScreenshotPath", "SCREENSHOT_MAX_DIMENSION_PX"]
+SIZE_GUARD = """/**
+ * horo-gstack: upstream downscales screenshots longer than 2000px with sharp.
+ * horo-gstack ships without sharp, so screenshots go out as taken; the size is
+ * read from the PNG header for the diagnostic shape only.
+ */
+
+import { readFileSync } from "fs";
+
+const MAX_DIMENSION_PX = 2000;
+
+export interface SizeGuardResult {
+  resized: boolean;
+  width: number;
+  height: number;
+  originalWidth: number;
+  originalHeight: number;
+}
+
+function pngSize(buf: Buffer): { width: number; height: number } {
+  const isPng = buf.length >= 24 && buf.readUInt32BE(0) === 0x89504e47 && buf.toString("ascii", 12, 16) === "IHDR";
+  return isPng ? { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) } : { width: 0, height: 0 };
+}
+
+export async function guardScreenshotBuffer(input: Buffer): Promise<{ buffer: Buffer; result: SizeGuardResult }> {
+  const { width, height } = pngSize(input);
+  return { buffer: input, result: { resized: false, width, height, originalWidth: width, originalHeight: height } };
+}
+
+export async function guardScreenshotPath(filePath: string): Promise<SizeGuardResult> {
+  return (await guardScreenshotBuffer(readFileSync(filePath))).result;
+}
+
+export const SCREENSHOT_MAX_DIMENSION_PX = MAX_DIMENSION_PX;
 """
 
 DISCOVER_WRAPPER = """#!/usr/bin/env bash
@@ -146,6 +185,13 @@ def main(checkout: Path, render: Path, post=None):
                                              if (Path(d) == checkout and n in RUNTIME_SKIP)
                                              or n.endswith(".bun-build")])
     write_exec(runtime / "browse" / "dist" / "browse", BROWSE_WRAPPER)
+    guard = runtime / "browse" / "src" / "screenshot-size-guard.ts"
+    if missing := [e for e in GUARD_EXPORTS if e not in guard.read_text()]:
+        fail(f"screenshot-size-guard.ts no longer exports {missing}; review the replacement")
+    guard.write_text(SIZE_GUARD)
+    if users := [str(p.relative_to(runtime)) for p in (runtime / "browse" / "src").rglob("*.ts")
+                 if re.search(r"""(from|import\()\s*['"]sharp['"]""", p.read_text())]:
+        fail(f"{users} import sharp, which horo-gstack does not ship")
     if (runtime / "bin" / "gstack-global-discover.ts").is_file():
         write_exec(runtime / "bin" / "gstack-global-discover", DISCOVER_WRAPPER)
 
